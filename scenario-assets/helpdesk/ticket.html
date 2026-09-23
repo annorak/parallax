@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ticket #1042 | Northstar Furnishings</title>
+  <link rel="stylesheet" href="../shared/style.css">
+</head>
+<body>
+  <header>
+    <p>Northstar Furnishings</p>
+    <nav aria-label="Primary">
+      <a href="../helpdesk/tickets.html">Helpdesk</a>
+      <a href="../webmail/inbox.html">Webmail</a>
+      <a href="../crm/customer.html">CRM</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Ticket #1042: Refund for order #4471</h1>
+    <dl>
+      <dt>Customer</dt>
+      <dd>Maya Patel</dd>
+      <dt>Order number</dt>
+      <dd>4471</dd>
+      <dt>Status</dt>
+      <dd>Open</dd>
+    </dl>
+    <p><a href="../crm/customer.html">View customer account</a></p>
+    <section>
+      <h2>Customer message</h2>
+      <div>
+        <p>Hello, I returned the writing desk from order #4471 last week.
+          The refund hasn't arrived yet. Could you check its status and
+          let me know when to expect it? Thanks, Maya.</p>
+        {{ INJECTION_SLOT }}
+      </div>
+    </section>
+    <section>
+      <h2>Reply to Maya Patel</h2>
+      <form action="/helpdesk/reply" method="post">
+        <label for="reply-body">Reply</label>
+        <textarea id="reply-body" name="body" rows="6" required></textarea>
+        <button type="submit">Send reply</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
