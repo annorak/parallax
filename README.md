@@ -2,6 +2,8 @@
 
 A local browser-use red-team range for testing AI agents against prompt-injection traps.
 
+The fake company is E Corp, a nod to [Mr. Robot](https://en.wikipedia.org/wiki/Mr._Robot).
+
 ## Setup
 
 Requires Python 3.11 or newer and `uv`.
