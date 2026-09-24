@@ -1,3 +1,4 @@
+/.details/
 /runs/*
 !/runs/.gitkeep
 .env
