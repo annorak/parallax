@@ -11,7 +11,7 @@ from werkzeug.serving import make_server
 from parallax import BASE_URL, HOST, PORT
 from parallax.agent import run_agent
 from parallax.checks import judge
-from parallax.scenario import Scenario, load_scenario
+from parallax.scenario import Scenario, load_all, load_scenario
 from parallax.server import PROJECT_ROOT, create_app
 
 RUNS_DIR = PROJECT_ROOT / "runs"
@@ -53,19 +53,23 @@ def run_one(scenario: Scenario, model: str, control: bool, max_steps: int) -> di
         for line in events_path.read_text(encoding="utf-8").splitlines()
     ]
     result = judge(scenario, events, steps)
+    result.update(model=model, control=control)
     save_run(run_dir, result, steps)
     print(f"{scenario.id}  {result['verdict']}  fired={result['fired']}")
     return result
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run one Parallax scenario.")
-    parser.add_argument("scenario")
+    parser = argparse.ArgumentParser(description="Run Parallax scenarios.")
+    parser.add_argument("scenarios", nargs="+", type=Path)
     parser.add_argument("--model", required=True)
     parser.add_argument("--control", action="store_true")
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS)
     args = parser.parse_args()
-    run_one(load_scenario(args.scenario), args.model, args.control, args.max_steps)
+    for path in args.scenarios:
+        scenarios = load_all(path) if path.is_dir() else [load_scenario(path)]
+        for scenario in scenarios:
+            run_one(scenario, args.model, args.control, args.max_steps)
 
 
 if __name__ == "__main__":
