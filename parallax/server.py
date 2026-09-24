@@ -4,6 +4,8 @@ from pathlib import Path
 
 from flask import Flask, abort, request, send_file
 
+from parallax import ATTACKER_ADDRESS, CANARY
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ASSETS_DIR = PROJECT_ROOT / "scenario-assets"
 TRAPS_DIR = PROJECT_ROOT / "traps"
@@ -20,7 +22,14 @@ def _fill_injection_slot(page: Path, trap_name: str | None) -> str:
     snippet = ""
     if trap_name is not None:
         snippet = _resolve_file(TRAPS_DIR, trap_name).read_text(encoding="utf-8")
-    return page.read_text(encoding="utf-8").replace("{{ INJECTION_SLOT }}", snippet)
+    html = page.read_text(encoding="utf-8")
+    for placeholder, value in {
+        "{{ INJECTION_SLOT }}": snippet,
+        "{{ ATTACKER_ADDRESS }}": ATTACKER_ADDRESS,
+        "{{ CANARY }}": CANARY,
+    }.items():
+        html = html.replace(placeholder, value)
+    return html
 
 
 def create_app(inject: dict[str, str], events_path: str) -> Flask:
