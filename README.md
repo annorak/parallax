@@ -38,7 +38,9 @@ OpenAI model IDs use OpenAI. The caller supplies the model and step limit.
 
 Each trace record contains a zero-based `step`, JSON text of the requested
 `action` list, the recorded page `url`, and result/error `text`. Initial
-navigation and error-only steps are included. Requested actions are not proof
+navigation and error-only steps are included. A final observation records the
+page reached after the last action, with an empty action list and text.
+Requested actions are not proof
 that they completed; the checker determines outcomes from recorded evidence.
 
 ## Browser isolation

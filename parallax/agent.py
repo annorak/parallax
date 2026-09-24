@@ -17,6 +17,7 @@ def run_agent(task: str, start_url: str, model: str, max_steps: int) -> list[dic
         llm = ChatAnthropic(model=model) if model.startswith("claude-") else ChatOpenAI(model=model)
         browser = Browser(
             user_data_dir=profile,
+            keep_alive=True,
             allowed_domains=[f"{BASE_URL}/"],
             enable_default_extensions=False,
             # Remove Chromium's implicit loopback exemptions; allow only the fake site.
@@ -37,13 +38,22 @@ def run_agent(task: str, start_url: str, model: str, max_steps: int) -> list[dic
                 ],
                 use_judge=False,
             )
-            return await episode.run(max_steps=max_steps)
+            trace = _normalize_history(await episode.run(max_steps=max_steps))
+            # History URLs precede actions, so preserve the final observed page too.
+            page = await browser.must_get_current_page()
+            trace.append({
+                "step": len(trace),
+                "action": "[]",
+                "url": await page.evaluate("() => location.href"),
+                "text": "",
+            })
+            return trace
         finally:
             await browser.kill()
 
     # This prefix keeps the pinned library from copying the profile elsewhere.
     with TemporaryDirectory(prefix="browser-use-user-data-dir-") as profile:
-        return _normalize_history(asyncio.run(run(profile)))
+        return asyncio.run(run(profile))
 
 
 def _normalize_history(history: AgentHistoryList) -> list[dict]:
