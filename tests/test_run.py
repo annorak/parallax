@@ -163,8 +163,8 @@ def test_cli_runs_scenario(scenario, monkeypatch, options, control, max_steps):
     assert (folder / "events.jsonl").read_text() == ""
 
 
-def _run_scripted_batch_agent(task, start_url, model, max_steps):
-    assert (model, max_steps) == ("test-model", 3)
+def _run_scripted_batch_agent(task, start_url, max_steps):
+    assert max_steps == 3
     pages = "\n".join(request(path) for path in (
         start_url, "/helpdesk/ticket.html", "/webmail/message.html",
         "/crm/customer.html",
@@ -201,13 +201,19 @@ def _run_scripted_batch_agent(task, start_url, model, max_steps):
 @pytest.mark.parametrize("use_directory", [True, False])
 def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directory):
     paths = sorted(SCENARIO_PATH.parent.glob("*.yaml"))
+    models = ("test-model", "other-model")
+    model_options = [
+        arg for model in models for arg in ("--model", model)
+    ]
     arguments = (
         [str(SCENARIO_PATH.parent)] if use_directory
         else [str(path) for path in paths]
     )
+
     def scripted_agent(task, start_url, model, max_steps, defense):
+        assert model in models
         assert defense == defense_text
-        return _run_scripted_batch_agent(task, start_url, model, max_steps)
+        return _run_scripted_batch_agent(task, start_url, max_steps)
 
     monkeypatch.setattr(run, "run_agent", scripted_agent)
     for defense_path in (None, DEFENSE_PATH):
@@ -221,7 +227,7 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
         for control in (False, True):
             options = ["--control"] if control else []
             monkeypatch.setattr(sys, "argv", [
-                "parallax.run", *arguments, "--model", "test-model",
+                "parallax.run", *arguments, *model_options,
                 "--max-steps", "3", *options, *defense_options,
             ])
             run.main()
@@ -230,17 +236,16 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
         json.loads(path.read_text())
         for path in sorted(run.RUNS_DIR.rglob("result.json"))
     ]
-    assert len(results) == 20
+    assert len(results) == 40
     assert {
-        (result["id"], result["control"], result["defense"])
+        (result["id"], result["model"], result["control"], result["defense"])
         for result in results
     } == {
-        (path.stem, control, defense)
-        for path in paths for control in (False, True)
+        (path.stem, model, control, defense)
+        for path in paths for model in models for control in (False, True)
         for defense in (None, DEFENSE_PATH.stem)
     }
     for result in results:
-        assert result["model"] == "test-model"
         assert result["task_done"] is True
         assert result["verdict"] == ("PASS" if result["control"] else "FAIL")
         if not result["control"]:
@@ -250,7 +255,7 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
                 else ["outbox_contains_canary", "email_sent_to"]
             )
             assert set(failures) <= set(result["fired"])
-    assert len(capsys.readouterr().out.splitlines()) == 20
+    assert len(capsys.readouterr().out.splitlines()) == 40
 
     monkeypatch.setattr(sys, "argv", ["parallax.report", str(run.RUNS_DIR)])
     report.main()
@@ -260,16 +265,18 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
         line.strip("| ").split(" | ")
         for line in scorecard.splitlines() if line.startswith("| 0")
     ]
-    assert len(rows) == 20
+    assert len(rows) == 40
     assert {
         (row[0], row[1], row[2], row[5], row[6], row[8]) for row in rows
     } == {
         (
-            path.stem, "test-model", str(control),
+            path.stem, model, str(control),
             "PASS" if control else "FAIL", "True", str(defense),
         )
-        for path in paths for control in (False, True)
+        for path in paths for model in models for control in (False, True)
         for defense in (None, DEFENSE_PATH.stem)
     }
-    assert "| 20 | 10 | 0 | 10 | 20/20 (100.0%) |" in scorecard
-    assert scorecard.count("| +0.0 |") == len(paths) * 2 * 3
+    assert "| 40 | 20 | 0 | 20 | 40/40 (100.0%) |" in scorecard
+    for model in models:
+        assert f"| {model} | 20 | 10 | 0 | 10 | 20/20 (100.0%) |" in scorecard
+    assert scorecard.count("| +0.0 |") == len(paths) * len(models) * 2 * 3

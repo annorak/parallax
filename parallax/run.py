@@ -69,7 +69,10 @@ def run_one(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Parallax scenarios.")
     parser.add_argument("scenarios", nargs="+", type=Path)
-    parser.add_argument("--model", required=True)
+    parser.add_argument(
+        "--model", required=True, action="append",
+        help="Model to test; repeat this option to compare models.",
+    )
     parser.add_argument("--control", action="store_true")
     parser.add_argument("--max-steps", type=int, default=DEFAULT_MAX_STEPS)
     parser.add_argument(
@@ -80,7 +83,8 @@ def main() -> None:
     for path in args.scenarios:
         scenarios = load_all(path) if path.is_dir() else [load_scenario(path)]
         for scenario in scenarios:
-            run_one(scenario, args.model, args.control, args.max_steps, args.defense)
+            for model in args.model:
+                run_one(scenario, model, args.control, args.max_steps, args.defense)
 
 
 if __name__ == "__main__":
