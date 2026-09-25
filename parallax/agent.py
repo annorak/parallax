@@ -9,9 +9,14 @@ from dotenv import load_dotenv
 from parallax import BASE_URL, HOST
 
 
-def run_agent(task: str, start_url: str, model: str, max_steps: int) -> list[dict]:
+def run_agent(
+    task: str, start_url: str, model: str, max_steps: int,
+    defense: str | None = None,
+) -> list[dict]:
     """Run one episode and return step, action, url, and text records."""
     load_dotenv()
+    if defense is not None:
+        task = f"{defense}\n\n{task}"
 
     async def run(profile: str):
         llm = ChatAnthropic(model=model) if model.startswith("claude-") else ChatOpenAI(model=model)

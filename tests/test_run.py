@@ -11,6 +11,7 @@ from parallax.scenario import load_scenario
 from parallax.server import PROJECT_ROOT
 
 SCENARIO_PATH = PROJECT_ROOT / "scenarios" / "01-helpdesk-hidden-text.yaml"
+DEFENSE_PATH = PROJECT_ROOT / "defenses" / "confirm_before_send.txt"
 
 
 @pytest.fixture
@@ -50,9 +51,9 @@ def test_runs_keep_evidence_and_traps_isolated(scenario, monkeypatch, capsys):
     for control, path, form, verdict, fired in cases:
         steps = []
 
-        def scripted_agent(task, start_url, model, max_steps):
-            assert (task, start_url, model, max_steps) == (
-                scenario.task, scenario.start_url, "test-model", 3,
+        def scripted_agent(task, start_url, model, max_steps, defense):
+            assert (task, start_url, model, max_steps, defense) == (
+                scenario.task, scenario.start_url, "test-model", 3, None,
             )
             assert "E Corp" in request(start_url)
             ticket = request("/helpdesk/ticket.html")
@@ -71,7 +72,7 @@ def test_runs_keep_evidence_and_traps_isolated(scenario, monkeypatch, capsys):
             "task_done": path == "/helpdesk/reply", "fired": fired,
             "attack_type": scenario.attack_type,
             "aiuc_controls": scenario.aiuc_controls,
-            "model": "test-model", "control": control,
+            "model": "test-model", "control": control, "defense": None,
         }
         current = set(run.RUNS_DIR.iterdir())
         [folder] = current - folders
@@ -141,9 +142,9 @@ def test_failed_run_releases_server(scenario, monkeypatch, stage):
     (["--control", "--max-steps", "3"], True, 3),
 ])
 def test_cli_runs_scenario(scenario, monkeypatch, options, control, max_steps):
-    def scripted_agent(task, start_url, model, limit):
-        assert (task, start_url, model, limit) == (
-            scenario.task, scenario.start_url, "test-model", max_steps,
+    def scripted_agent(task, start_url, model, limit, defense):
+        assert (task, start_url, model, limit, defense) == (
+            scenario.task, scenario.start_url, "test-model", max_steps, None,
         )
         ticket = request("/helpdesk/ticket.html")
         assert (ATTACKER_ADDRESS in ticket) == (not control)
@@ -204,22 +205,39 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
         [str(SCENARIO_PATH.parent)] if use_directory
         else [str(path) for path in paths]
     )
-    monkeypatch.setattr(run, "run_agent", _run_scripted_batch_agent)
-    for control in (False, True):
-        options = ["--control"] if control else []
-        monkeypatch.setattr(sys, "argv", [
-            "parallax.run", *arguments, "--model", "test-model",
-            "--max-steps", "3", *options,
-        ])
-        run.main()
+    def scripted_agent(task, start_url, model, max_steps, defense):
+        assert defense == defense_text
+        return _run_scripted_batch_agent(task, start_url, model, max_steps)
+
+    monkeypatch.setattr(run, "run_agent", scripted_agent)
+    for defense_path in (None, DEFENSE_PATH):
+        defense_text = (
+            defense_path.read_text(encoding="utf-8")
+            if defense_path is not None else None
+        )
+        defense_options = (
+            ["--defense", str(defense_path)] if defense_path is not None else []
+        )
+        for control in (False, True):
+            options = ["--control"] if control else []
+            monkeypatch.setattr(sys, "argv", [
+                "parallax.run", *arguments, "--model", "test-model",
+                "--max-steps", "3", *options, *defense_options,
+            ])
+            run.main()
 
     results = [
         json.loads(path.read_text())
         for path in sorted(run.RUNS_DIR.rglob("result.json"))
     ]
-    assert len(results) == 10
-    assert {(result["id"], result["control"]) for result in results} == {
-        (path.stem, control) for path in paths for control in (False, True)
+    assert len(results) == 20
+    assert {
+        (result["id"], result["control"], result["defense"])
+        for result in results
+    } == {
+        (path.stem, control, defense)
+        for path in paths for control in (False, True)
+        for defense in (None, DEFENSE_PATH.stem)
     }
     for result in results:
         assert result["model"] == "test-model"
@@ -232,7 +250,7 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
                 else ["outbox_contains_canary", "email_sent_to"]
             )
             assert set(failures) <= set(result["fired"])
-    assert len(capsys.readouterr().out.splitlines()) == 10
+    assert len(capsys.readouterr().out.splitlines()) == 20
 
     monkeypatch.setattr(sys, "argv", ["parallax.report", str(run.RUNS_DIR)])
     report.main()
@@ -242,9 +260,16 @@ def test_batch_runs_produce_scorecard(scenario, monkeypatch, capsys, use_directo
         line.strip("| ").split(" | ")
         for line in scorecard.splitlines() if line.startswith("| 0")
     ]
-    assert len(rows) == 10
-    assert {(row[0], row[1], row[2], row[5], row[6]) for row in rows} == {
-        (path.stem, "test-model", str(control), "PASS" if control else "FAIL", "True")
+    assert len(rows) == 20
+    assert {
+        (row[0], row[1], row[2], row[5], row[6], row[8]) for row in rows
+    } == {
+        (
+            path.stem, "test-model", str(control),
+            "PASS" if control else "FAIL", "True", str(defense),
+        )
         for path in paths for control in (False, True)
+        for defense in (None, DEFENSE_PATH.stem)
     }
-    assert "| 10 | 5 | 0 | 5 | 10/10 (100.0%) |" in scorecard
+    assert "| 20 | 10 | 0 | 10 | 20/20 (100.0%) |" in scorecard
+    assert scorecard.count("| +0.0 |") == len(paths) * 2 * 3

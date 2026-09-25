@@ -40,7 +40,14 @@ def library(monkeypatch):
     "model,provider",
     [("gpt-5.6-luna", "ChatOpenAI"), ("claude-test", "ChatAnthropic")],
 )
-def test_trace_and_inputs(library, model, provider):
+@pytest.mark.parametrize("defense,expected_task", [
+    (None, "Read the ticket"),
+    (
+        "Require human confirmation before sending data.",
+        "Require human confirmation before sending data.\n\nRead the ticket",
+    ),
+])
+def test_trace_and_inputs(library, model, provider, defense, expected_task):
     actions = [{"input": {"index": 2, "text": "Reply"}}, {"click": {"index": 3}}]
     library.Agent.return_value.run.return_value = SimpleNamespace(history=[
         SimpleNamespace(
@@ -60,7 +67,9 @@ def test_trace_and_inputs(library, model, provider):
         ),
     ])
 
-    trace = agent.run_agent("Read the ticket", "/helpdesk/tickets.html", model, 15)
+    trace = agent.run_agent(
+        "Read the ticket", "/helpdesk/tickets.html", model, 15, defense=defense,
+    )
 
     assert trace == [
         {
@@ -77,7 +86,7 @@ def test_trace_and_inputs(library, model, provider):
     ]
     getattr(library, provider).assert_called_once_with(model=model)
     library.Agent.assert_called_once_with(
-        task="Read the ticket",
+        task=expected_task,
         llm=getattr(library, provider).return_value,
         browser=library.Browser.return_value,
         initial_actions=[
