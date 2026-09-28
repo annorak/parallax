@@ -19,7 +19,13 @@ def run_agent(
         task = f"{defense}\n\n{task}"
 
     async def run(profile: str):
-        llm = ChatAnthropic(model=model) if model.startswith("claude-") else ChatOpenAI(model=model)
+        if model == "claude-opus-5-5":
+            # Adaptive thinking selects automatic tools in the pinned adapter.
+            llm = ChatAnthropic(model=model, thinking={"type": "adaptive"})
+        elif model.startswith("claude-"):
+            llm = ChatAnthropic(model=model)
+        else:
+            llm = ChatOpenAI(model=model)
         browser = Browser(
             user_data_dir=profile,
             keep_alive=True,
@@ -42,6 +48,7 @@ def run_agent(
                     {"navigate": {"url": BASE_URL + start_url, "new_tab": False}}
                 ],
                 use_judge=False,
+                use_thinking=False,
             )
             trace = _normalize_history(await episode.run(max_steps=max_steps))
             # History URLs precede actions, so preserve the final observed page too.

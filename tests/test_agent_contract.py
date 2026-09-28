@@ -93,6 +93,7 @@ def test_trace_and_inputs(library, model, provider, defense, expected_task):
             {"navigate": {"url": BASE_URL + "/helpdesk/tickets.html", "new_tab": False}}
         ],
         use_judge=False,
+        use_thinking=False,
     )
     library.Agent.return_value.run.assert_awaited_once_with(max_steps=15)
     assert library.Browser.call_args.kwargs["keep_alive"] is True
